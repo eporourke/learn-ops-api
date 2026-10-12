@@ -17,6 +17,8 @@ from LearningAPI.models.people import (Assessment, NssUser, StudentAssessment,
 from LearningAPI.models.coursework import Book
 from LearningAPI.models.skill import AssessmentWeight, LearningWeight
 
+import structlog
+log = structlog.get_logger(__name__)
 
 class StudentAssessmentPermission(permissions.BasePermission):
     """Custom permissions for Assessment view"""
@@ -44,21 +46,32 @@ class StudentAssessmentView(ViewSet):
 
     @method_decorator(is_instructor())
     def create(self, request):
+
+
         """Handle POST operations
 
         Returns:
             Response -- JSON serialized instance
         """
+
+        log.info("StudentAssessmentView create request received")
+
         book_id = request.data.get("bookId", None)
+        log.debug("Book ID assigned", book_id=book_id)
         source_url = request.data.get("sourceURL", None)
+        log.debug("Source URL assigned", source_url=source_url)
         name = request.data.get("name", None)
+        log.debug("Name assigned", name=name)
         objectives = request.data.get("objectives", None)
+        log.debug("Objectives assigned", objectives=objectives)
 
         if name is not None and \
             source_url is not None and \
             objectives is not None and \
             book_id is not None and\
             request.auth.user.is_staff:
+
+            log.info("StudentAssessmentView create if")
 
             assmt = Assessment()
             assmt.name = request.data["name"]
@@ -85,6 +98,10 @@ class StudentAssessmentView(ViewSet):
             student_assessment.student = NssUser.objects.get(pk=request.data["studentId"])
             student_assessment.assessment = Assessment.objects.get(pk=request.data["assessmentId"])
             student_assessment.status = StudentAssessmentStatus.objects.get(status="In Progress")
+            student_assessment.instructor = NssUser.objects.get(user=request.auth.user)
+
+            log.debug("Student assessment created", student_assessment=student_assessment)
+# log entire student assessment object (second statement)
 
             try:
                 with transaction.atomic():
@@ -92,8 +109,15 @@ class StudentAssessmentView(ViewSet):
                     serializer = StudentAssessmentSerializer(student_assessment)
                     return Response(serializer.data, status=status.HTTP_201_CREATED)
             except Exception as ex:
-                return Response({"reason": ex.args[0]}, status=status.HTTP_400_BAD_REQUEST)
-
+                    log.error(
+                        "Error creating student assessment",
+                        student_id=request.data.get("studentId"),
+                        assessment_id=request.data.get("assessmentId"),
+                        error=str(ex),
+                        exc_info=True
+                        )
+            return Response({"reason": ex.args[0]}, status=status.HTTP_400_BAD_REQUEST)
+# ^ try catch block, will try to execute the statements between 
     def list(self, request):
         """Listing all assessments"""
         if "studentId" in request.query_params:
