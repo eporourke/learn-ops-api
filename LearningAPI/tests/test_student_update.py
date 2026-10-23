@@ -28,5 +28,9 @@ class StudentPartialUpdateTests(APITestCase):
             format="json"
         )
         #  put your test code here
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        nss_user.refresh_from_db()
+        self.assertEqual(nss_user.slack_handle, "@newhandle")
         # delete this line when you are done
-        fail("Not Yet Implemented")
+        #fail("Not Yet Implemented")
